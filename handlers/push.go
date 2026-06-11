@@ -47,6 +47,8 @@ var leaderboardTemplates = []pushTemplate{
 	{Title: "Rank shuffle", Body: "You've landed at %s after starting at %s. The race is heating up."},
 }
 
+const pushRecordSize uint32 = 2048
+
 type pushSubscriptionInput struct {
 	Endpoint string `json:"endpoint"`
 	Keys     struct {
@@ -221,6 +223,7 @@ func SendTestNotification(push *PushService) gin.HandlerFunc {
 			Subscriber:      push.subject,
 			VAPIDPublicKey:  push.publicKey,
 			VAPIDPrivateKey: push.privateKey,
+			RecordSize:      pushRecordSize,
 			TTL:             30,
 		})
 		if resp != nil {
@@ -310,6 +313,7 @@ func (p *PushService) sendToSubscriptions(query string, args []any, eventKey str
 			Subscriber:      p.subject,
 			VAPIDPublicKey:  p.publicKey,
 			VAPIDPrivateKey: p.privateKey,
+			RecordSize:      pushRecordSize,
 			TTL:             30,
 		})
 		if resp != nil {
