@@ -1,4 +1,4 @@
-import { createResource, createSignal, For, Show } from 'solid-js'
+import { createResource, createSignal, For, onCleanup, Show } from 'solid-js'
 import type { MatchesResponse } from '../types'
 import MatchCard from '../components/MatchCard'
 
@@ -9,8 +9,14 @@ async function fetchMatches(): Promise<MatchesResponse> {
 }
 
 export default function Matches() {
-  const [data] = createResource(fetchMatches)
+  const [data, { refetch }] = createResource(fetchMatches)
   const [filterPlayer, setFilterPlayer] = createSignal('')
+
+  const refreshTimer = window.setInterval(() => {
+    refetch()
+  }, 30_000)
+
+  onCleanup(() => window.clearInterval(refreshTimer))
 
   const players = () => {
     const owners = data()?.teamOwners
