@@ -48,7 +48,7 @@ export default function Matches() {
 
   return (
     <div>
-      <Show when={data.loading}>
+      <Show when={data.loading && !data()}>
         <p class="loading">Loading matches…</p>
       </Show>
       <Show when={data.error}>

@@ -1,4 +1,4 @@
-import { createResource, For, Show } from 'solid-js'
+import { createResource, For, onCleanup, Show } from 'solid-js'
 import type { LeaderboardEntry } from '../types'
 import { getFlagClass } from '../flags'
 
@@ -23,11 +23,17 @@ const rankIcon = (rank: number) => {
 }
 
 export default function Leaderboard() {
-  const [entries] = createResource(fetchLeaderboard)
+  const [entries, { refetch }] = createResource(fetchLeaderboard)
+
+  const refreshTimer = window.setInterval(() => {
+    refetch()
+  }, 30_000)
+
+  onCleanup(() => window.clearInterval(refreshTimer))
 
   return (
     <div>
-      <Show when={entries.loading}>
+      <Show when={entries.loading && !entries()}>
         <p class="loading">Loading leaderboard…</p>
       </Show>
       <Show when={entries.error}>
