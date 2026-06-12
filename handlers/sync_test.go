@@ -60,6 +60,23 @@ func TestInternalMatchID(t *testing.T) {
 	}
 }
 
+func TestNormalizeTeamCode(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{code: "kor", want: "KOR"},
+		{code: " URU ", want: "URY"},
+		{code: "URY", want: "URY"},
+	}
+
+	for _, tt := range tests {
+		if got := normalizeTeamCode(tt.code); got != tt.want {
+			t.Fatalf("normalizeTeamCode(%q) = %q, want %q", tt.code, got, tt.want)
+		}
+	}
+}
+
 func TestSyncFallsBackAndStoresSourceID(t *testing.T) {
 	database := newTestSyncDB(t)
 	syncer := NewSyncer(database, []MatchProvider{
@@ -95,6 +112,39 @@ func TestSyncFallsBackAndStoresSourceID(t *testing.T) {
 	}
 	if status != "UPCOMING" {
 		t.Fatalf("status = %q, want %q", status, "UPCOMING")
+	}
+}
+
+func TestSyncUsesTeamCodeAliases(t *testing.T) {
+	database := newTestSyncDB(t)
+	syncer := NewSyncer(database, []MatchProvider{
+		fakeProvider{name: "fifa", matches: []ProviderMatch{{
+			Source:       "fifa",
+			SourceID:     "400000001",
+			HomeTeamCode: "URU",
+			AwayTeamCode: "KOR",
+			Status:       "UPCOMING",
+			MatchDate:    "2026-06-14T02:00:00Z",
+			Stage:        "Group H",
+		}}},
+	}, nil)
+
+	syncer.Sync()
+
+	var matchID, homeCode string
+	err := database.QueryRow(`
+		SELECT m.id, ht.code
+		FROM matches m
+		JOIN teams ht ON ht.id = m.home_team_id
+	`).Scan(&matchID, &homeCode)
+	if err != nil {
+		t.Fatalf("query synced match: %v", err)
+	}
+	if matchID != "202606140200_URY_KOR" {
+		t.Fatalf("matchID = %q, want %q", matchID, "202606140200_URY_KOR")
+	}
+	if homeCode != "URY" {
+		t.Fatalf("homeCode = %q, want %q", homeCode, "URY")
 	}
 }
 
@@ -145,6 +195,7 @@ func newTestSyncDB(t *testing.T) *sql.DB {
 		);
 		INSERT INTO teams (id, name, code) VALUES (1, 'Korea Republic', 'KOR');
 		INSERT INTO teams (id, name, code) VALUES (2, 'Czechia', 'CZE');
+		INSERT INTO teams (id, name, code) VALUES (3, 'Uruguay', 'URY');
 	`)
 	if err != nil {
 		t.Fatalf("create schema: %v", err)

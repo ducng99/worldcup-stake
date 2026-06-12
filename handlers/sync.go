@@ -232,8 +232,8 @@ func (s *Syncer) syncMatches(providerName string, matches []ProviderMatch) error
 		if source == "" {
 			source = providerName
 		}
-		homeCode := strings.ToUpper(strings.TrimSpace(m.HomeTeamCode))
-		awayCode := strings.ToUpper(strings.TrimSpace(m.AwayTeamCode))
+		homeCode := normalizeTeamCode(m.HomeTeamCode)
+		awayCode := normalizeTeamCode(m.AwayTeamCode)
 		if homeCode == "" || awayCode == "" || m.MatchDate == "" || m.SourceID == "" {
 			continue
 		}
@@ -328,6 +328,18 @@ func localizedDescription(values []localizedValue) string {
 
 var nonMatchIDChars = regexp.MustCompile(`[^A-Z0-9]+`)
 
+var teamCodeAliases = map[string]string{
+	"URU": "URY",
+}
+
+func normalizeTeamCode(code string) string {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if alias, ok := teamCodeAliases[code]; ok {
+		return alias
+	}
+	return code
+}
+
 func internalMatchID(matchDate, homeCode, awayCode string) string {
 	t, err := time.Parse(time.RFC3339, matchDate)
 	if err != nil {
@@ -356,7 +368,7 @@ func (s *Syncer) buildTeamMap() (map[string]teamInfo, error) {
 		if err := rows.Scan(&id, &code, &name); err != nil {
 			return nil, err
 		}
-		m[code] = teamInfo{ID: id, Name: name}
+		m[normalizeTeamCode(code)] = teamInfo{ID: id, Name: name}
 	}
 	return m, nil
 }
