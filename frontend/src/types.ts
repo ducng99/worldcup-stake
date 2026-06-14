@@ -18,12 +18,17 @@ export interface MatchesResponse {
   teamOwners: Record<string, string>
 }
 
+export interface TeamInfo {
+  name: string
+  code: string
+}
+
 export interface LeaderboardEntry {
   rank: number
   userId: number
   name: string
   points: number
-  teams: string[]
+  teams: TeamInfo[]
 }
 
 export interface User {

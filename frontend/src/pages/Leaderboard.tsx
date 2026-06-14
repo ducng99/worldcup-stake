@@ -53,13 +53,13 @@ export default function Leaderboard() {
                   <div class="user-teams">
                     <For each={entry.teams}>
                       {(team) => {
-                        const flagClass = getFlagClass(team)
+                        const flagClass = getFlagClass(team.code)
                         return (
                           <span class="team-chip">
                             <Show when={flagClass}>
                               <span class={`${flagClass} chip-flag`} />
                             </Show>
-                            {team}
+                            {team.name}
                           </span>
                         )
                       }}

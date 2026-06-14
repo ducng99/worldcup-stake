@@ -20,10 +20,15 @@ type Match struct {
 	Stage        string `json:"stage"`
 }
 
+type TeamInfo struct {
+	Name string `json:"name"`
+	Code string `json:"code"`
+}
+
 type LeaderboardEntry struct {
-	Rank   int      `json:"rank"`
-	UserID int      `json:"userId"`
-	Name   string   `json:"name"`
-	Points float64  `json:"points"`
-	Teams  []string `json:"teams"`
+	Rank   int        `json:"rank"`
+	UserID int        `json:"userId"`
+	Name   string     `json:"name"`
+	Points float64    `json:"points"`
+	Teams  []TeamInfo `json:"teams"`
 }

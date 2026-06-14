@@ -92,7 +92,7 @@ func ComputeLeaderboard(database *sql.DB) ([]models.LeaderboardEntry, error) {
 	}
 
 	teamRows, err := database.Query(`
-		SELECT ut.user_id, t.name
+		SELECT ut.user_id, t.name, t.code
 		FROM user_teams ut
 		JOIN teams t ON t.id = ut.team_id
 		ORDER BY ut.user_id, t.name
@@ -102,21 +102,21 @@ func ComputeLeaderboard(database *sql.DB) ([]models.LeaderboardEntry, error) {
 	}
 	defer teamRows.Close()
 
-	userTeams := map[int][]string{}
+	userTeams := map[int][]models.TeamInfo{}
 	for teamRows.Next() {
 		var userID int
-		var teamName string
-		if err := teamRows.Scan(&userID, &teamName); err != nil {
+		var t models.TeamInfo
+		if err := teamRows.Scan(&userID, &t.Name, &t.Code); err != nil {
 			continue
 		}
-		userTeams[userID] = append(userTeams[userID], teamName)
+		userTeams[userID] = append(userTeams[userID], t)
 	}
 
 	for i := range entries {
 		entries[i].Rank = i + 1
 		entries[i].Teams = userTeams[entries[i].UserID]
 		if entries[i].Teams == nil {
-			entries[i].Teams = []string{}
+			entries[i].Teams = []models.TeamInfo{}
 		}
 	}
 

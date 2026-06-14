@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	_ "modernc.org/sqlite"
+	"worldcup-stake/models"
 )
 
 func TestComputeLeaderboardScoresDrawsAndSameOwnerMatches(t *testing.T) {
@@ -23,6 +24,14 @@ func TestComputeLeaderboardScoresDrawsAndSameOwnerMatches(t *testing.T) {
 	assertPoints(t, pointsByName, "Ava", 1.5)
 	assertPoints(t, pointsByName, "Ben", 0.5)
 	assertPoints(t, pointsByName, "Cam", 1.0)
+
+	teamsByEntry := map[string][]models.TeamInfo{}
+	for _, entry := range entries {
+		teamsByEntry[entry.Name] = entry.Teams
+	}
+	if got := teamsByEntry["Cam"]; len(got) != 2 || got[0].Code != "DEL" || got[1].Code != "GAM" {
+		t.Fatalf("Cam teams = %v, want [DEL GAM]", got)
+	}
 }
 
 func assertPoints(t *testing.T, pointsByName map[string]float64, name string, want float64) {
