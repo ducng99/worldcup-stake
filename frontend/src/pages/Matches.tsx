@@ -39,7 +39,7 @@ export default function Matches() {
     data()?.matches.filter((m) => m.status !== 'FINISHED' && m.status !== 'LIVE') ?? []
 
   const finished = () =>
-    [...(data()?.matches.filter((m) => m.status === 'FINISHED') ?? [])].reverse()
+    (data()?.matches.filter((m) => m.status === 'FINISHED') ?? []).toReversed()
 
   const visibleLive = () => filterMatches(live())
   const visibleUpcoming = () => filterMatches(upcoming())
@@ -68,8 +68,10 @@ export default function Matches() {
           <Show when={filterPlayer()}>
             <button class="filter-clear" onClick={() => setFilterPlayer('')}>✕</button>
           </Show>
+          <div class="filter-bar-spacer" />
+          <button class="section-nav-btn" onClick={() => document.getElementById('section-results')?.scrollIntoView({ behavior: 'smooth' })}>Results</button>
         </div>
-        <section>
+        <section id="section-live">
           <div class="section-header">
             <h2 class="section-title">LIVE</h2>
             <div class="section-line" />
@@ -85,7 +87,7 @@ export default function Matches() {
             <p class="empty">No live matches.</p>
           </Show>
         </section>
-        <section>
+        <section id="section-upcoming">
           <div class="section-header">
             <h2 class="section-title">Upcoming</h2>
             <div class="section-line" />
@@ -101,7 +103,7 @@ export default function Matches() {
             <p class="empty">No upcoming matches.</p>
           </Show>
         </section>
-        <section>
+        <section id="section-results">
           <div class="section-header">
             <h2 class="section-title">Results</h2>
             <div class="section-line" />
