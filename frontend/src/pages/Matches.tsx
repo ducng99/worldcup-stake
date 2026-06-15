@@ -11,12 +11,28 @@ async function fetchMatches(): Promise<MatchesResponse> {
 export default function Matches() {
   const [data, { refetch }] = createResource(fetchMatches)
   const [filterPlayer, setFilterPlayer] = createSignal('')
+  let lastRefetchTime = Date.now()
 
-  const refreshTimer = window.setInterval(() => {
-    refetch()
-  }, 30_000)
+  const throttledRefetch = () => {
+    if (Date.now() - lastRefetchTime >= 30_000) {
+      lastRefetchTime = Date.now()
+      refetch()
+    }
+  }
 
-  onCleanup(() => window.clearInterval(refreshTimer))
+  const refreshTimer = window.setInterval(throttledRefetch, 30_000)
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      throttledRefetch()
+    }
+  }
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+
+  onCleanup(() => {
+    window.clearInterval(refreshTimer)
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+  })
 
   const players = () => {
     const owners = data()?.teamOwners
