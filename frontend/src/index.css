@@ -53,11 +53,10 @@ body {
 nav {
   max-width: 1140px;
   margin: 0 auto;
-  padding: 0 1.5rem;
+  padding: 0.75rem 1.5rem;
   display: flex;
   align-items: center;
   gap: 1.75rem;
-  height: 58px;
 }
 
 .nav-logo {
