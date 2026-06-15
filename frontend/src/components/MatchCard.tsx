@@ -31,10 +31,12 @@ export default function MatchCard(props: Props) {
 
   const isFinished = () => props.match.status === 'FINISHED'
   const isLive = () => props.match.status === 'LIVE'
+  const homeScore = () => props.match.homeScore
+  const awayScore = () => props.match.awayScore
   const hasScore = () =>
     (isFinished() || isLive()) &&
-    props.match.homeScore !== null &&
-    props.match.awayScore !== null
+    homeScore() !== null &&
+    awayScore() !== null
 
   const rowClass = () => {
     if (isFinished()) return 'match-row finished'
@@ -64,9 +66,9 @@ export default function MatchCard(props: Props) {
         <div class="row-score-block">
           <Show when={hasScore()} fallback={<span class="row-vs">vs</span>}>
             <span class="row-score">
-              <span class="row-score-num">{props.match.homeScore}</span>
+              <span class="row-score-num">{homeScore()}</span>
               <span class="row-score-sep">–</span>
-              <span class="row-score-num">{props.match.awayScore}</span>
+              <span class="row-score-num">{awayScore()}</span>
             </span>
           </Show>
         </div>
