@@ -20,10 +20,13 @@ func GetMatches(database *sql.DB) gin.HandlerFunc {
 				m.id, m.match_date, m.status, m.stage,
 				ht.id, ht.name, ht.code,
 				at.id, at.name, at.code,
+				htr.rank, atr.rank,
 				m.home_score, m.away_score
 			FROM matches m
 			JOIN teams ht ON ht.id = m.home_team_id
 			JOIN teams at ON at.id = m.away_team_id
+			LEFT JOIN team_rankings htr ON htr.country_code = ht.code
+			LEFT JOIN team_rankings atr ON atr.country_code = at.code
 			ORDER BY m.match_date ASC
 		`)
 		if err != nil {
@@ -35,11 +38,12 @@ func GetMatches(database *sql.DB) gin.HandlerFunc {
 		var matches []models.Match
 		for rows.Next() {
 			var m models.Match
-			var homeScore, awayScore sql.NullInt64
+			var homeRank, awayRank, homeScore, awayScore sql.NullInt64
 			if err := rows.Scan(
 				&m.ID, &m.MatchDate, &m.Status, &m.Stage,
 				&m.HomeTeamID, &m.HomeTeam, &m.HomeTeamCode,
 				&m.AwayTeamID, &m.AwayTeam, &m.AwayTeamCode,
+				&homeRank, &awayRank,
 				&homeScore, &awayScore,
 			); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -49,9 +53,17 @@ func GetMatches(database *sql.DB) gin.HandlerFunc {
 				v := int(homeScore.Int64)
 				m.HomeScore = &v
 			}
+			if homeRank.Valid {
+				v := int(homeRank.Int64)
+				m.HomeTeamRank = &v
+			}
 			if awayScore.Valid {
 				v := int(awayScore.Int64)
 				m.AwayScore = &v
+			}
+			if awayRank.Valid {
+				v := int(awayRank.Int64)
+				m.AwayTeamRank = &v
 			}
 			matches = append(matches, m)
 		}

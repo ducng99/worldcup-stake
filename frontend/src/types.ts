@@ -3,9 +3,11 @@ export interface Match {
   homeTeam: string
   homeTeamCode: string
   homeTeamId: number
+  homeTeamRank: number | null
   awayTeam: string
   awayTeamCode: string
   awayTeamId: number
+  awayTeamRank: number | null
   homeScore: number | null
   awayScore: number | null
   status: string

@@ -12,13 +12,21 @@ import (
 )
 
 type Syncer struct {
-	db        *sql.DB
-	providers []MatchProvider
-	push      *PushService
+	db                 *sql.DB
+	providers          []MatchProvider
+	push               *PushService
+	rankingProvider    *fifaRankingProvider
+	rankingUpdateDelay time.Duration
 }
 
 func NewSyncer(database *sql.DB, providers []MatchProvider, push *PushService) *Syncer {
-	return &Syncer{db: database, providers: providers, push: push}
+	return &Syncer{
+		db:                 database,
+		providers:          providers,
+		push:               push,
+		rankingProvider:    newFIFARankingProvider(),
+		rankingUpdateDelay: 2 * time.Minute,
+	}
 }
 
 type MatchProvider interface {
@@ -140,6 +148,70 @@ func (p *FIFAProvider) FetchMatches() ([]ProviderMatch, error) {
 	return matches, nil
 }
 
+type fifaRankingProvider struct {
+	url    string
+	client *http.Client
+}
+
+type teamRanking struct {
+	CountryCode     string
+	TeamName        string
+	Rank            int
+	PrevRank        int
+	TotalPoints     float64
+	PrevPoints      float64
+	RankingMovement int
+	RatedMatches    int
+}
+
+func newFIFARankingProvider() *fifaRankingProvider {
+	return &fifaRankingProvider{
+		url:    "https://api.fifa.com/api/v3/fifarankings/rankings/live?gender=1&sportType=0&language=en",
+		client: http.DefaultClient,
+	}
+}
+
+func (p *fifaRankingProvider) fetchRankings() ([]teamRanking, error) {
+	req, err := http.NewRequest("GET", p.url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	var result fifaRankingsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	rankings := make([]teamRanking, 0, len(result.Results))
+	for _, r := range result.Results {
+		countryCode := normalizeTeamCode(r.CountryCode)
+		if countryCode == "" || r.Rank == 0 {
+			continue
+		}
+		rankings = append(rankings, teamRanking{
+			CountryCode:     countryCode,
+			TeamName:        localizedDescription(r.TeamName),
+			Rank:            r.Rank,
+			PrevRank:        r.PrevRank,
+			TotalPoints:     r.TotalPoints,
+			PrevPoints:      r.PrevPoints,
+			RankingMovement: r.RankingMovement,
+			RatedMatches:    r.RatedMatches,
+		})
+	}
+	return rankings, nil
+}
+
 type teamInfo struct {
 	ID   int64
 	Name string
@@ -174,6 +246,21 @@ type apiScorePair struct {
 
 type fifaResponse struct {
 	Results []fifaMatch `json:"Results"`
+}
+
+type fifaRankingsResponse struct {
+	Results []fifaRanking `json:"Results"`
+}
+
+type fifaRanking struct {
+	TeamName        []localizedValue `json:"TeamName"`
+	CountryCode     string           `json:"IdCountry"`
+	Rank            int              `json:"Rank"`
+	PrevRank        int              `json:"PrevRank"`
+	TotalPoints     float64          `json:"TotalPoints"`
+	PrevPoints      float64          `json:"PrevPoints"`
+	RankingMovement int              `json:"RankingMovement"`
+	RatedMatches    int              `json:"RatedMatches"`
 }
 
 type fifaMatch struct {
@@ -252,6 +339,7 @@ func (s *Syncer) syncMatches(providerName string, matches []ProviderMatch) error
 	}
 
 	updated := 0
+	shouldRefreshRankings := false
 	for _, m := range matches {
 		source := m.Source
 		if source == "" {
@@ -305,7 +393,13 @@ func (s *Syncer) syncMatches(providerName string, matches []ProviderMatch) error
 		if s.push != nil && isUpcomingStatus(previousStatus) && isLiveStatus(nextStatus) {
 			s.push.NotifyMatchStart(matchID, home.ID, away.ID, home.Name, away.Name)
 		}
+		if isLiveStatus(previousStatus) && isFinishedStatus(nextStatus) {
+			shouldRefreshRankings = true
+		}
 		updated++
+	}
+	if shouldRefreshRankings {
+		s.scheduleRankingUpdate()
 	}
 	if s.push != nil {
 		if err := s.notifyLeaderboardChanges(); err != nil {
@@ -314,6 +408,71 @@ func (s *Syncer) syncMatches(providerName string, matches []ProviderMatch) error
 	}
 
 	log.Printf("Sync: %d/%d matches upserted from %s", updated, len(matches), providerName)
+	return nil
+}
+
+func (s *Syncer) scheduleRankingUpdate() {
+	if s.rankingProvider == nil {
+		return
+	}
+	delay := s.rankingUpdateDelay
+	go func() {
+		if delay > 0 {
+			time.Sleep(delay)
+		}
+		if err := s.refreshTeamRankings(); err != nil {
+			log.Printf("Rankings: failed to refresh team rankings: %v", err)
+		}
+	}()
+}
+
+func (s *Syncer) refreshTeamRankings() error {
+	if s.rankingProvider == nil {
+		return nil
+	}
+	rankings, err := s.rankingProvider.fetchRankings()
+	if err != nil {
+		return err
+	}
+	if len(rankings) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	updated := 0
+	for _, ranking := range rankings {
+		_, err := tx.Exec(`
+			INSERT INTO team_rankings (
+				country_code, team_name, rank, prev_rank,
+				total_points, prev_points, ranking_movement, rated_matches, updated_at
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(country_code) DO UPDATE SET
+				team_name = excluded.team_name,
+				rank = excluded.rank,
+				prev_rank = excluded.prev_rank,
+				total_points = excluded.total_points,
+				prev_points = excluded.prev_points,
+				ranking_movement = excluded.ranking_movement,
+				rated_matches = excluded.rated_matches,
+				updated_at = excluded.updated_at
+		`, ranking.CountryCode, ranking.TeamName, ranking.Rank, ranking.PrevRank,
+			ranking.TotalPoints, ranking.PrevPoints, ranking.RankingMovement, ranking.RatedMatches, now)
+		if err != nil {
+			return err
+		}
+		updated++
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	log.Printf("Rankings: %d team rankings upserted", updated)
 	return nil
 }
 

@@ -3,6 +3,8 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -148,6 +150,68 @@ func TestSyncUsesTeamCodeAliases(t *testing.T) {
 	}
 }
 
+func TestRefreshTeamRankingsUpsertsFIFARankings(t *testing.T) {
+	database := newTestSyncDB(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"Results": [
+				{
+					"TeamName": [{"Locale": "en-GB", "Description": "Korea Republic"}],
+					"IdCountry": "KOR",
+					"Rank": 23,
+					"PrevRank": 22,
+					"TotalPoints": 1585.12,
+					"PrevPoints": 1580.5,
+					"RankingMovement": -1,
+					"RatedMatches": 41
+				},
+				{
+					"TeamName": [{"Locale": "en-GB", "Description": "Argentina"}],
+					"IdCountry": "ARG",
+					"Rank": 1,
+					"PrevRank": 1,
+					"TotalPoints": 1889.06,
+					"PrevPoints": 1877.27,
+					"RankingMovement": 0,
+					"RatedMatches": 61
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	syncer := NewSyncer(database, nil, nil)
+	syncer.rankingProvider = &fifaRankingProvider{url: server.URL, client: server.Client()}
+
+	if err := syncer.refreshTeamRankings(); err != nil {
+		t.Fatalf("refreshTeamRankings() error = %v", err)
+	}
+
+	var teamName string
+	var rank int
+	var totalPoints float64
+	err := database.QueryRow(`
+		SELECT team_name, rank, total_points
+		FROM team_rankings
+		WHERE country_code = 'KOR'
+	`).Scan(&teamName, &rank, &totalPoints)
+	if err != nil {
+		t.Fatalf("query KOR ranking: %v", err)
+	}
+	if teamName != "Korea Republic" || rank != 23 || totalPoints != 1585.12 {
+		t.Fatalf("ranking = (%q, %d, %f), want Korea Republic, 23, 1585.12", teamName, rank, totalPoints)
+	}
+
+	var count int
+	if err := database.QueryRow("SELECT COUNT(*) FROM team_rankings").Scan(&count); err != nil {
+		t.Fatalf("query ranking count: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("ranking count = %d, want 2", count)
+	}
+}
+
 type fakeProvider struct {
 	name    string
 	matches []ProviderMatch
@@ -192,6 +256,17 @@ func newTestSyncDB(t *testing.T) *sql.DB {
 			source_match_id TEXT NOT NULL,
 			PRIMARY KEY (match_id, source),
 			UNIQUE(source, source_match_id)
+		);
+		CREATE TABLE team_rankings (
+			country_code     TEXT PRIMARY KEY,
+			team_name        TEXT NOT NULL,
+			rank             INTEGER NOT NULL,
+			prev_rank        INTEGER NOT NULL,
+			total_points     REAL NOT NULL,
+			prev_points      REAL NOT NULL,
+			ranking_movement INTEGER NOT NULL,
+			rated_matches    INTEGER NOT NULL,
+			updated_at       TEXT NOT NULL
 		);
 		INSERT INTO teams (id, name, code) VALUES (1, 'Korea Republic', 'KOR');
 		INSERT INTO teams (id, name, code) VALUES (2, 'Czechia', 'CZE');

@@ -91,6 +91,17 @@ func migrate(database *sql.DB) error {
 			points     REAL NOT NULL,
 			updated_at TEXT NOT NULL
 		);
+		CREATE TABLE IF NOT EXISTS team_rankings (
+			country_code     TEXT PRIMARY KEY,
+			team_name        TEXT NOT NULL,
+			rank             INTEGER NOT NULL,
+			prev_rank        INTEGER NOT NULL,
+			total_points     REAL NOT NULL,
+			prev_points      REAL NOT NULL,
+			ranking_movement INTEGER NOT NULL,
+			rated_matches    INTEGER NOT NULL,
+			updated_at       TEXT NOT NULL
+		);
 		UPDATE matches
 		SET status = CASE UPPER(TRIM(status))
 			WHEN 'SCHEDULED' THEN 'UPCOMING'

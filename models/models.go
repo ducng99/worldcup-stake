@@ -10,9 +10,11 @@ type Match struct {
 	HomeTeamID   int    `json:"homeTeamId"`
 	HomeTeam     string `json:"homeTeam"`
 	HomeTeamCode string `json:"homeTeamCode"`
+	HomeTeamRank *int   `json:"homeTeamRank"`
 	AwayTeamID   int    `json:"awayTeamId"`
 	AwayTeam     string `json:"awayTeam"`
 	AwayTeamCode string `json:"awayTeamCode"`
+	AwayTeamRank *int   `json:"awayTeamRank"`
 	HomeScore    *int   `json:"homeScore"`
 	AwayScore    *int   `json:"awayScore"`
 	Status       string `json:"status"`

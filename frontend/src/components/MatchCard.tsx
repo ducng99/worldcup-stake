@@ -26,6 +26,8 @@ function formatStage(stage: string) {
 export default function MatchCard(props: Props) {
   const homeOwner = () => props.teamOwners[props.match.homeTeamCode]
   const awayOwner = () => props.teamOwners[props.match.awayTeamCode]
+  const homeRank = () => props.match.homeTeamRank
+  const awayRank = () => props.match.awayTeamRank
   const homeFlag = () => getFlagClass(props.match.homeTeamCode)
   const awayFlag = () => getFlagClass(props.match.awayTeamCode)
 
@@ -54,9 +56,14 @@ export default function MatchCard(props: Props) {
         <div class="row-team home">
           <div class="row-team-info">
             <span class="row-team-name">{props.match.homeTeam}</span>
-            <Show when={homeOwner()}>
-              <span class="owner-badge">{homeOwner()}</span>
-            </Show>
+            <div class="row-team-badges">
+              <Show when={homeRank()}>
+                <span class="rank-badge">#{homeRank()}</span>
+              </Show>
+              <Show when={homeOwner()}>
+                <span class="owner-badge">{homeOwner()}</span>
+              </Show>
+            </div>
           </div>
           <Show when={homeFlag()} fallback={<div class="row-flag-placeholder" />}>
             <span class={`${homeFlag()} row-flag`} />
@@ -79,9 +86,14 @@ export default function MatchCard(props: Props) {
           </Show>
           <div class="row-team-info away-info">
             <span class="row-team-name">{props.match.awayTeam}</span>
-            <Show when={awayOwner()}>
-              <span class="owner-badge">{awayOwner()}</span>
-            </Show>
+            <div class="row-team-badges">
+              <Show when={awayRank()}>
+                <span class="rank-badge">#{awayRank()}</span>
+              </Show>
+              <Show when={awayOwner()}>
+                <span class="owner-badge">{awayOwner()}</span>
+              </Show>
+            </div>
           </div>
         </div>
       </div>
