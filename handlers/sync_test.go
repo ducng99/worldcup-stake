@@ -184,8 +184,8 @@ func TestRefreshTeamRankingsUpsertsFIFARankings(t *testing.T) {
 	syncer := NewSyncer(database, nil, nil)
 	syncer.rankingProvider = &fifaRankingProvider{url: server.URL, client: server.Client()}
 
-	if err := syncer.refreshTeamRankings(); err != nil {
-		t.Fatalf("refreshTeamRankings() error = %v", err)
+	if err := syncer.RefreshTeamRankings(); err != nil {
+		t.Fatalf("RefreshTeamRankings() error = %v", err)
 	}
 
 	var teamName string

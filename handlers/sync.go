@@ -420,13 +420,13 @@ func (s *Syncer) scheduleRankingUpdate() {
 		if delay > 0 {
 			time.Sleep(delay)
 		}
-		if err := s.refreshTeamRankings(); err != nil {
+		if err := s.RefreshTeamRankings(); err != nil {
 			log.Printf("Rankings: failed to refresh team rankings: %v", err)
 		}
 	}()
 }
 
-func (s *Syncer) refreshTeamRankings() error {
+func (s *Syncer) RefreshTeamRankings() error {
 	if s.rankingProvider == nil {
 		return nil
 	}

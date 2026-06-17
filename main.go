@@ -35,6 +35,9 @@ func main() {
 
 	go func() {
 		syncer.Sync()
+		if err := syncer.RefreshTeamRankings(); err != nil {
+			log.Printf("Rankings: failed to refresh team rankings: %v", err)
+		}
 		for {
 			interval := 1 * time.Hour
 			if syncer.HasLiveMatches() {
