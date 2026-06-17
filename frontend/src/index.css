@@ -726,24 +726,81 @@ section {
   }
 
   .row-fixture {
-    gap: 0.55rem;
-    padding: 0.9rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: start;
+    gap: 0.65rem;
+    padding: 0.9rem 0.75rem 0.8rem;
+  }
+
+  .row-team,
+  .row-team.home,
+  .row-team.away {
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .row-team-info {
+    display: contents;
+  }
+
+  .row-team.home .row-team-info,
+  .row-team.away .row-team-info,
+  .away-info {
+    text-align: center;
+  }
+
+  .row-team-badges,
+  .row-team.home .row-team-badges {
+    order: 3;
+    justify-content: center;
+    min-height: 3.05rem;
   }
 
   .row-team-name {
-    font-size: 1.05rem;
+    order: 1;
+    width: 100%;
+    min-height: 2rem;
+    font-size: 1rem;
+    line-height: 1;
+    white-space: normal;
+    overflow: visible;
+    text-align: center;
+    text-overflow: clip;
+    word-break: normal;
+    overflow-wrap: anywhere;
   }
 
   .row-flag {
+    order: 2;
     font-size: 2rem;
   }
 
+  .row-flag-placeholder {
+    order: 2;
+    width: 2.65rem;
+    height: 2rem;
+  }
+
+  .rank-badge,
+  .owner-badge {
+    min-width: 3.25rem;
+    text-align: center;
+  }
+
   .row-score-block {
-    width: 5.2rem;
+    width: 4.45rem;
+    padding-top: 2.75rem;
   }
 
   .row-score-num {
-    font-size: 2.1rem;
-    min-width: 1.5rem;
+    font-size: 2rem;
+    min-width: 1.25rem;
+  }
+
+  .row-vs {
+    padding: 0.32rem 0.72rem;
   }
 }
