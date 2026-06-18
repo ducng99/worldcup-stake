@@ -58,7 +58,7 @@ export default function MatchCard(props: Props) {
             <span class="row-team-name">{props.match.homeTeam}</span>
             <div class="row-team-badges">
               <Show when={homeRank()}>
-                <span class="rank-badge">#{homeRank()}</span>
+                <span class="team-rank-badge">#{homeRank()}</span>
               </Show>
               <Show when={homeOwner()}>
                 <span class="owner-badge">{homeOwner()}</span>
@@ -88,7 +88,7 @@ export default function MatchCard(props: Props) {
             <span class="row-team-name">{props.match.awayTeam}</span>
             <div class="row-team-badges">
               <Show when={awayRank()}>
-                <span class="rank-badge">#{awayRank()}</span>
+                <span class="team-rank-badge">#{awayRank()}</span>
               </Show>
               <Show when={awayOwner()}>
                 <span class="owner-badge">{awayOwner()}</span>

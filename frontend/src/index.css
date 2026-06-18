@@ -378,7 +378,7 @@ section {
   display: inline-block;
 }
 
-.rank-badge {
+.team-rank-badge {
   font-size: 0.67rem;
   font-weight: 800;
   background: #fff7ed;
@@ -784,7 +784,7 @@ section {
     height: 2rem;
   }
 
-  .rank-badge,
+  .team-rank-badge,
   .owner-badge {
     min-width: 3.25rem;
     text-align: center;
