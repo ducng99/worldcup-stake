@@ -132,24 +132,49 @@ func migrate(database *sql.DB) error {
 }
 
 type duplicateMatch struct {
-	orphanID    string
+	duplicateID string
 	canonicalID string
 }
 
 func cleanupDuplicateMatches(database *sql.DB) (int, error) {
 	rows, err := database.Query(`
-		SELECT o.id, MIN(c.id)
-		FROM matches o
-		JOIN matches c ON c.id <> o.id
-			AND c.home_team_id = o.home_team_id
-			AND c.away_team_id = o.away_team_id
-			AND COALESCE(c.stage, '') = COALESCE(o.stage, '')
-		JOIN match_sources cs ON cs.match_id = c.id
-		LEFT JOIN match_sources os ON os.match_id = o.id
-		WHERE os.match_id IS NULL
-		GROUP BY o.id
-		HAVING COUNT(DISTINCT c.id) = 1
-		ORDER BY COALESCE(o.match_date, '')
+		WITH duplicate_groups AS (
+			SELECT
+				home_team_id,
+				away_team_id,
+				COALESCE(stage, '') AS stage_key,
+				SUBSTR(COALESCE(match_date, ''), 1, 10) AS match_day,
+				COALESCE(
+					MIN(CASE WHEN EXISTS (SELECT 1 FROM match_sources ms WHERE ms.match_id = matches.id) THEN id END),
+					MIN(id)
+				) AS canonical_id
+			FROM matches
+			GROUP BY home_team_id, away_team_id, COALESCE(stage, ''), SUBSTR(COALESCE(match_date, ''), 1, 10)
+			HAVING COUNT(*) > 1
+		),
+		safe_groups AS (
+			SELECT g.*
+			FROM duplicate_groups g
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM matches m
+				JOIN match_sources ms ON ms.match_id = m.id
+				WHERE m.home_team_id = g.home_team_id
+					AND m.away_team_id = g.away_team_id
+					AND COALESCE(m.stage, '') = g.stage_key
+					AND SUBSTR(COALESCE(m.match_date, ''), 1, 10) = g.match_day
+				GROUP BY ms.source
+				HAVING COUNT(*) > 1
+			)
+		)
+		SELECT m.id, g.canonical_id
+		FROM matches m
+		JOIN safe_groups g ON g.home_team_id = m.home_team_id
+			AND g.away_team_id = m.away_team_id
+			AND g.stage_key = COALESCE(m.stage, '')
+			AND g.match_day = SUBSTR(COALESCE(m.match_date, ''), 1, 10)
+		WHERE m.id <> g.canonical_id
+		ORDER BY g.canonical_id, COALESCE(m.match_date, ''), m.id
 	`)
 	if err != nil {
 		return 0, err
@@ -159,7 +184,7 @@ func cleanupDuplicateMatches(database *sql.DB) (int, error) {
 	duplicates := []duplicateMatch{}
 	for rows.Next() {
 		var duplicate duplicateMatch
-		if err := rows.Scan(&duplicate.orphanID, &duplicate.canonicalID); err != nil {
+		if err := rows.Scan(&duplicate.duplicateID, &duplicate.canonicalID); err != nil {
 			return 0, err
 		}
 		duplicates = append(duplicates, duplicate)
@@ -186,12 +211,17 @@ func cleanupDuplicateMatches(database *sql.DB) (int, error) {
 				match_date = (SELECT match_date FROM matches WHERE id = ?),
 				stage = (SELECT stage FROM matches WHERE id = ?)
 			WHERE id = ?
-		`, duplicate.orphanID, duplicate.orphanID, duplicate.orphanID, duplicate.orphanID, duplicate.orphanID, duplicate.canonicalID)
+				AND COALESCE((SELECT match_date FROM matches WHERE id = ?), '') >= COALESCE(match_date, '')
+		`, duplicate.duplicateID, duplicate.duplicateID, duplicate.duplicateID, duplicate.duplicateID, duplicate.duplicateID, duplicate.canonicalID, duplicate.duplicateID)
 		if err != nil {
 			return 0, err
 		}
 
-		if _, err := tx.Exec("DELETE FROM matches WHERE id = ?", duplicate.orphanID); err != nil {
+		if _, err := tx.Exec("UPDATE match_sources SET match_id = ? WHERE match_id = ?", duplicate.canonicalID, duplicate.duplicateID); err != nil {
+			return 0, err
+		}
+
+		if _, err := tx.Exec("DELETE FROM matches WHERE id = ?", duplicate.duplicateID); err != nil {
 			return 0, err
 		}
 	}

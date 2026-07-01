@@ -113,7 +113,53 @@ func TestRefreshLeaderboardStateAfterDuplicateCleanup(t *testing.T) {
 	}
 }
 
-func TestCleanupDuplicateMatchesSkipsAmbiguousOrphans(t *testing.T) {
+func TestCleanupDuplicateMatchesMergesDifferentProviderSources(t *testing.T) {
+	database := newTestDB(t)
+	insertCleanupTeams(t, database)
+
+	_, err := database.Exec(`
+		INSERT INTO matches (id, home_team_id, away_team_id, status, match_date, stage)
+		VALUES ('202607010100_MEX_ECU', 3, 4, 'UPCOMING', '2026-07-01T01:00:00Z', 'Group A');
+		INSERT INTO match_sources (match_id, source, source_match_id)
+		VALUES ('202607010100_MEX_ECU', 'fifa', '400021520');
+		INSERT INTO matches (id, home_team_id, away_team_id, status, match_date, stage)
+		VALUES ('202607010200_MEX_ECU', 3, 4, 'UPCOMING', '2026-07-01T02:00:00Z', 'Group A');
+		INSERT INTO match_sources (match_id, source, source_match_id)
+		VALUES ('202607010200_MEX_ECU', 'football-data', '12345');
+	`)
+	if err != nil {
+		t.Fatalf("insert duplicate sourced matches: %v", err)
+	}
+
+	cleaned, err := cleanupDuplicateMatches(database)
+	if err != nil {
+		t.Fatalf("cleanupDuplicateMatches() error = %v", err)
+	}
+	if cleaned != 1 {
+		t.Fatalf("cleaned = %d, want 1", cleaned)
+	}
+
+	var matchCount, sourceCount int
+	if err := database.QueryRow("SELECT COUNT(*) FROM matches WHERE home_team_id = 3 AND away_team_id = 4").Scan(&matchCount); err != nil {
+		t.Fatalf("query match count: %v", err)
+	}
+	if err := database.QueryRow("SELECT COUNT(*) FROM match_sources WHERE match_id = '202607010100_MEX_ECU'").Scan(&sourceCount); err != nil {
+		t.Fatalf("query source count: %v", err)
+	}
+	if matchCount != 1 || sourceCount != 2 {
+		t.Fatalf("counts = matches:%d sources:%d, want matches:1 sources:2", matchCount, sourceCount)
+	}
+
+	var matchDate string
+	if err := database.QueryRow("SELECT match_date FROM matches WHERE id = '202607010100_MEX_ECU'").Scan(&matchDate); err != nil {
+		t.Fatalf("query canonical match date: %v", err)
+	}
+	if matchDate != "2026-07-01T02:00:00Z" {
+		t.Fatalf("matchDate = %q, want latest duplicate time", matchDate)
+	}
+}
+
+func TestCleanupDuplicateMatchesSkipsSameProviderSourceConflicts(t *testing.T) {
 	database := newTestDB(t)
 	insertCleanupTeams(t, database)
 
@@ -123,11 +169,9 @@ func TestCleanupDuplicateMatchesSkipsAmbiguousOrphans(t *testing.T) {
 		INSERT INTO match_sources (match_id, source, source_match_id)
 		VALUES ('sourced-1', 'fifa', '1');
 		INSERT INTO matches (id, home_team_id, away_team_id, status, match_date, stage)
-		VALUES ('sourced-2', 1, 2, 'UPCOMING', '2026-06-15T02:00:00Z', 'Group A');
+		VALUES ('sourced-2', 1, 2, 'UPCOMING', '2026-06-12T03:00:00Z', 'Group A');
 		INSERT INTO match_sources (match_id, source, source_match_id)
-		VALUES ('sourced-2', 'football-data', '2');
-		INSERT INTO matches (id, home_team_id, away_team_id, status, match_date, stage)
-		VALUES ('orphan', 1, 2, 'UPCOMING', '2026-06-12T03:00:00Z', 'Group A');
+		VALUES ('sourced-2', 'fifa', '2');
 	`)
 	if err != nil {
 		t.Fatalf("insert ambiguous matches: %v", err)
@@ -160,6 +204,8 @@ func insertCleanupTeams(t *testing.T, database *sql.DB) {
 	_, err := database.Exec(`
 		INSERT INTO teams (id, name, code) VALUES (1, 'Korea Republic', 'KOR');
 		INSERT INTO teams (id, name, code) VALUES (2, 'Czechia', 'CZE');
+		INSERT INTO teams (id, name, code) VALUES (3, 'Mexico', 'MEX');
+		INSERT INTO teams (id, name, code) VALUES (4, 'Ecuador', 'ECU');
 	`)
 	if err != nil {
 		t.Fatalf("insert teams: %v", err)
