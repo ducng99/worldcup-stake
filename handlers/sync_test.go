@@ -150,6 +150,57 @@ func TestSyncUsesTeamCodeAliases(t *testing.T) {
 	}
 }
 
+func TestSyncReusesSourceMatchWhenKickoffChanges(t *testing.T) {
+	database := newTestSyncDB(t)
+	syncer := NewSyncer(database, nil, nil)
+	first := ProviderMatch{
+		Source:       "fifa",
+		SourceID:     "400021520",
+		HomeTeamCode: "KOR",
+		AwayTeamCode: "CZE",
+		Status:       "TIMED",
+		MatchDate:    "2026-06-12T02:00:00Z",
+		Stage:        "Group A",
+	}
+	second := first
+	second.MatchDate = "2026-06-12T03:00:00Z"
+
+	if err := syncer.syncMatches("fifa", []ProviderMatch{first}); err != nil {
+		t.Fatalf("first syncMatches() error = %v", err)
+	}
+	if err := syncer.syncMatches("fifa", []ProviderMatch{second}); err != nil {
+		t.Fatalf("second syncMatches() error = %v", err)
+	}
+
+	var matchCount, sourceCount int
+	if err := database.QueryRow("SELECT COUNT(*) FROM matches").Scan(&matchCount); err != nil {
+		t.Fatalf("query match count: %v", err)
+	}
+	if err := database.QueryRow("SELECT COUNT(*) FROM match_sources").Scan(&sourceCount); err != nil {
+		t.Fatalf("query source count: %v", err)
+	}
+	if matchCount != 1 || sourceCount != 1 {
+		t.Fatalf("counts = matches:%d sources:%d, want matches:1 sources:1", matchCount, sourceCount)
+	}
+
+	var matchID, matchDate string
+	err := database.QueryRow(`
+		SELECT m.id, m.match_date
+		FROM matches m
+		JOIN match_sources ms ON ms.match_id = m.id
+		WHERE ms.source = 'fifa' AND ms.source_match_id = '400021520'
+	`).Scan(&matchID, &matchDate)
+	if err != nil {
+		t.Fatalf("query source match: %v", err)
+	}
+	if matchID != "202606120200_KOR_CZE" {
+		t.Fatalf("matchID = %q, want original internal match ID", matchID)
+	}
+	if matchDate != "2026-06-12T03:00:00Z" {
+		t.Fatalf("matchDate = %q, want updated kickoff", matchDate)
+	}
+}
+
 func TestRefreshTeamRankingsUpsertsFIFARankings(t *testing.T) {
 	database := newTestSyncDB(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

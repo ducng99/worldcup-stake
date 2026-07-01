@@ -357,6 +357,14 @@ func (s *Syncer) syncMatches(providerName string, matches []ProviderMatch) error
 			continue
 		}
 		matchID := internalMatchID(m.MatchDate, homeCode, awayCode)
+		existingMatchID, err := s.sourceMatchID(source, m.SourceID)
+		if err != nil {
+			log.Printf("Sync: failed to fetch existing source %s match %s: %v", source, m.SourceID, err)
+			continue
+		}
+		if existingMatchID != "" {
+			matchID = existingMatchID
+		}
 		previousStatus, err := s.previousMatchStatus(matchID)
 		if err != nil {
 			log.Printf("Sync: failed to fetch previous match %s status: %v", matchID, err)
@@ -564,6 +572,15 @@ func (s *Syncer) previousMatchStatus(matchID string) (string, error) {
 		return "", nil
 	}
 	return status, err
+}
+
+func (s *Syncer) sourceMatchID(source, sourceID string) (string, error) {
+	var matchID string
+	err := s.db.QueryRow("SELECT match_id FROM match_sources WHERE source = ? AND source_match_id = ?", source, sourceID).Scan(&matchID)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return matchID, err
 }
 
 func isLiveStatus(status string) bool {
